@@ -1,0 +1,7 @@
+*.txt
+*.log
+*.pyc
+logs/*
+tmp/*
+data/db/*
+!*.keep
