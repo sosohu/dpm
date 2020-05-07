@@ -4,6 +4,9 @@
 import urllib.parse
 import pycurl
 import json
+import shutil
+import io
+from PIL import Image
 from engine.common.curl.base_request import CBaseRequest
 from engine.common.start_up import gLogger
 
@@ -18,22 +21,39 @@ class CGetRequest(CBaseRequest):
         CBaseRequest.__del__(self)
 
     def putHeader(self, iHeader):
+        if not type(iHeader) is list:
+            gLogger.error("Expect a list but input type is: {}".format(type(iHeader)))
+            return
+
         self.__mHeader = iHeader
 
     def putUrl(self, iUrl):
         self.__mUrl = iUrl
 
     def putParams(self, iParams):
-        self.__mParams = iParams
+        if not type(iParams) is dict:
+            gLogger.error("Expect a dict but input type is: {}".format(type(iParams)))
+            return
+        
+        self.__mParams = urllib.parse.urlencode(iParams)
 
     def performRequest(self):
-        gLogger.debug("Start to raise a get request. Url: {}. Params: {}. Header: {}".format(self.__mUrl, urllib.parse.urlencode(self.__mParams), self.__mHeader))
+        gLogger.debug("Start to raise a get request. Url: {}. Params: {}. Header: {}".format(self.__mUrl, self.__mParams or "", self.__mHeader))
 
-        self._mCurl.setopt(pycurl.URL, self.__mUrl + '?' + urllib.parse.urlencode(self.__mParams))
+        if self.__mParams:
+            self._mCurl.setopt(pycurl.URL, self.__mUrl + '?' + self.__mParams)
+        else:
+            self._mCurl.setopt(pycurl.URL, self.__mUrl)
+        
         self._mCurl.setopt(pycurl.HTTPHEADER, self.__mHeader)
         self._mCurl.perform()
-        # Get the content stored in the BytesIO object (in byte characters) 
+        # Get the content stored in the BytesIO object (in byte characters)
+        lResponseHeader = self._mResponseHeader.getvalue()
+        print(lResponseHeader.decode('utf-8'))
         lResponsebody = self._mResponseData.getvalue()
+        with open('out.jpg', 'wb') as out_file:
+            out_file.write(lResponsebody)
         # Decode the bytes stored in get_body to HTML and print the result 
-        print(lResponsebody)
-        return json.loads(lResponsebody.decode('utf-8'))
+        #gLogger.debug("Get request return data: {}".format(lResponsebody.decode('utf-8')))
+        #return json.loads(lResponsebody.decode('utf-8'))
+        return
