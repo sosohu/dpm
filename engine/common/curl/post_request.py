@@ -40,9 +40,5 @@ class CPostRequest(CBaseRequest):
         self._mCurl.setopt(pycurl.URL, self.__mUrl)
         self._mCurl.setopt(pycurl.HTTPHEADER, self.__mHeader)
         self._mCurl.setopt(pycurl.POSTFIELDS, self.__mFields)
-        self._mCurl.perform()
-        # Get the content stored in the BytesIO object (in byte characters) 
-        lResponsebody = self._mResponseData.getvalue()
-        # Decode the bytes stored in get_body to HTML and print the result 
-        gLogger.debug("Post request return data: {}".format(lResponsebody.decode('utf-8')))
-        return json.loads(lResponsebody.decode('utf-8'))
+
+        return CBaseRequest._performRequest(self)

@@ -4,10 +4,12 @@
 from io import BytesIO
 import pycurl
 from engine.common.start_up import gConfigFileWrapper
+from engine.common.start_up import gLogger
 
 class CBaseRequest():
     def __init__(self, iName):
         self._mCurl = None
+        self.__ResponseCode = None
         self.__initMember(iName)
         self.__constructCurl()
 
@@ -34,3 +36,38 @@ class CBaseRequest():
         self._mCurl.setopt(pycurl.COOKIEFILE, self.__mCookieFile)
         self._mCurl.setopt(pycurl.SSL_VERIFYPEER, 0)
         self._mCurl.setopt(pycurl.SSL_VERIFYHOST, 0)
+
+    def _performRequest(self):
+        self._mCurl.perform()
+        self._washHeader()
+
+        gLogger.debug("HTTP request return code: {}".format(self.__ResponseCode))
+        gLogger.debug("HTTP request return body: {}".format(self._mResponseData.getvalue()))
+        return self.__ResponseCode
+
+    def _washHeader(self):
+        gLogger.debug("HTTP request return header: {}".format(self._mResponseHeader.getvalue().decode('utf-8')))
+        lHeaderList = self._mResponseHeader.getvalue().decode('utf-8').split('\n')
+
+        self._mResponseHeader = {}
+
+        for lField in lHeaderList:
+            if ':' not in lField:
+                if 'HTTP' in lField:
+                    self.__ResponseCode = lField.split(' ', 2)[1]
+                    self.__ResponseCode = int(self.__ResponseCode)
+                continue
+
+            lName, lValue = lField.split(':', 1)
+
+            lName = lName.strip()
+            lValue = lValue.strip()
+            lName = lName.lower()
+
+            self._mResponseHeader[lName] = lValue
+
+    def getResponseHeader(self):
+        return self._mResponseHeader
+
+    def getResponseBody(self):
+        return self._mResponseData.getvalue()
