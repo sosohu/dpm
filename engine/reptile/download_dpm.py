@@ -2,6 +2,7 @@
 # encoding:utf-8
 
 import json
+import re
 
 from engine.common.start_up import gConfigFileWrapper
 from engine.common.start_up import gLogger
@@ -20,9 +21,12 @@ class CDownloadDpm():
         return
 
     def run(self):
+        gLogger.info("Start to download category {} page {}.".format(self.__mCategory, self.__mPage))
+        self.__getResouce()
+        gLogger.info("Download category {} page {} finished.".format(self.__mCategory, self.__mPage))
         return
 
-    def __getMetadata(self):
+    def __getResouce(self):
         lPostRequest = CPostRequest('download dpm list post')
         lPostRequest.putUrl(gConfigFileWrapper.getStr('dpm', 'query_list_url'))
 
@@ -49,11 +53,11 @@ class CDownloadDpm():
                 for lRowData in lRowsData:
                     lUuid = lRowData["uuid"]
                     if not lUuid:
-                        gLogger.error("Resource metadata info is not correct. Row data: {}.".format(lRowData))
+                        gLogger.error("Resource metadata info in page {} is not correct. Row data: {}.".format(self.__mPage, lRowData))
                         continue
 
                     if gMetadataDpm.isExistedResource(lUuid):
-                        gLogger.warn("Resource {} has been existed. Skip it".format(lUuid))
+                        gLogger.warn("Resource {} in page {} has been existed. Skip it".format(lUuid, self.__mPage))
                         continue
 
                     lResourceName = lRowData["name"] or "None"
@@ -62,31 +66,38 @@ class CDownloadDpm():
                     gLogger.debug("Start to process {} {}".format(lResourceName, lResourceDynastyName))
 
                     if lRowData["bigImage"]:
+                        #lGetRequest.cleanData()
                         lGetRequest.putUrl(gConfigFileWrapper.getStr('dpm', 'image_source_url').format(lRowData["bigImage"]))
                         lGetRequest.putHeader([self.__Referer])
 
                         lResponseCode = lGetRequest.performRequest()
-                        lResponseHeader = lGetRequest.getResponseHeader()
 
-                        if lResponseCode == 200 and 'image/jpeg' in lResponseHeader['content-type']:
-                            lResponsebody = lGetRequest.getResponseBody()
-                            lOutputFile = "{}/{}-{}.jpg".format(self.__mSavePath, lResourceDynastyName, lResourceName)
-                            with open(lOutputFile, 'wb') as out_file:
-                                out_file.write(lResponsebody)
+                        if lResponseCode == 200:
+                            lResponseHeader = lGetRequest.getResponseHeader()
+                            if 'image/jpeg' in lResponseHeader['content-type']:
+                                lResponsebody = lGetRequest.getResponseBody()
+                                lOutputFile = "{}/{}-{}-{}.jpg".format(self.__mSavePath, lResourceDynastyName, lResourceName, lUuid)
+                                lOutputFile = re.sub(r'[*?"<>|]', '', lOutputFile)
+                                with open(lOutputFile, 'wb+') as out_file:
+                                    out_file.write(lResponsebody)
+                                    # Write metadata to database
+                                    lRowData["page"] = self.__mPage
+                                    gMetadataDpm.insertResource(lUuid, lRowData)
+                            else:
+                                gLogger.error("Fetch resource {}-{} in page {} failed. Response header: {}".format(lResourceDynastyName, lResourceName, self.__mPage,lResponseHeader))
                         else:
-                            gLogger.error("Fetch resource {}-{} failed. Response code: {}.".format(lResourceDynastyName, lResourceName, lResponseCode))
-
-                        # Write metadata to database
-                        gMetadataDpm.insertResource(lUuid, lRowData)
-
+                            gLogger.error("Fetch resource {}-{} in page {} failed. Response code: {}.".format(lResourceDynastyName, lResourceName, self.__mPage, lResponseCode))
                     else:
-                        gLogger.warn("The resource {}-{} does not have the big image".format(lResourceDynastyName, lResourceName))
+                        gLogger.warn("The resource {}-{} in page {} does not have the big image".format(lResourceDynastyName, lResourceName, self.__mPage))
 
-                        
                 del lGetRequest
             else:
-                gLogger.warn("The dpm list return result is not expected. Response body: {}".format(lResponsebody))
+                gLogger.warn("The page {}'s dpm list return result is not expected. Response body: {}".format(self.__mPage, lResponsebody))
         else:
-            gLogger.error("Fetch dpm list failed. Response code: {}. Response header: {}".format(lResponseCode, lResponseHeader))
+            gLogger.error("Fetch page {}'s dpm list failed. Response code: {}. Response header: {}".format(self.__mPage, lResponseCode, lResponseHeader))
 
         del lPostRequest
+
+def downloadDpmRun(iCategory, iPage, iSavePath):
+    lDownloadDpm = CDownloadDpm(iCategory, iPage, iSavePath)
+    lDownloadDpm.run()

@@ -17,12 +17,19 @@ class CBaseRequest():
         if self._mCurl:
             self._mCurl.close()
 
+    def __cleanData__(self):
+        self.__ResponseCode = None
+        self._mResponseHeaderByte.truncate(0)
+        self._mResponseDataByte.truncate(0)
+
     def __initMember(self, iName):
         self._mName = iName
         #self.__mCookieFile  =  "{}-{}-{}.cookie".format(iName, gNowTimeFunc(), uuid.uuid4())
         self.__mCookieFile = "{}{}.cookie".format(gConfigFileWrapper.getStr('curl', 'cookie_folder'), self._mName)
-        self._mResponseHeader = BytesIO()
-        self._mResponseData = BytesIO()
+        self._mResponseHeaderByte = BytesIO()
+        self._mResponseDataByte = BytesIO()
+        self._mResponseHeader = {}
+        self._mResponseData = {}
 
     def __constructCurl(self):
         self._mCurl = pycurl.Curl()
@@ -30,24 +37,28 @@ class CBaseRequest():
         self._mCurl.setopt(pycurl.CONNECTTIMEOUT, gConfigFileWrapper.getInt('curl', 'connect_timeout'))
         self._mCurl.setopt(pycurl.TIMEOUT, gConfigFileWrapper.getInt('curl', 'timeout'))
         self._mCurl.setopt(pycurl.USERAGENT, gConfigFileWrapper.getStr('curl', 'user_agent'))
-        self._mCurl.setopt(pycurl.WRITEHEADER, self._mResponseHeader)
-        self._mCurl.setopt(pycurl.WRITEDATA, self._mResponseData)
+        self._mCurl.setopt(pycurl.WRITEHEADER, self._mResponseHeaderByte)
+        self._mCurl.setopt(pycurl.WRITEDATA, self._mResponseDataByte)
         self._mCurl.setopt(pycurl.COOKIEJAR, self.__mCookieFile)
         self._mCurl.setopt(pycurl.COOKIEFILE, self.__mCookieFile)
         self._mCurl.setopt(pycurl.SSL_VERIFYPEER, 0)
         self._mCurl.setopt(pycurl.SSL_VERIFYHOST, 0)
 
     def _performRequest(self):
-        self._mCurl.perform()
+        try:
+            self._mCurl.perform()
+        except pycurl.error:
+            return -1
+
         self._washHeader()
+        self._mResponseData =  self._mResponseDataByte.getvalue()
 
         gLogger.debug("HTTP request return code: {}".format(self.__ResponseCode))
-        gLogger.debug("HTTP request return body: {}".format(self._mResponseData.getvalue()))
         return self.__ResponseCode
 
     def _washHeader(self):
-        gLogger.debug("HTTP request return header: {}".format(self._mResponseHeader.getvalue().decode('utf-8')))
-        lHeaderList = self._mResponseHeader.getvalue().decode('utf-8').split('\n')
+        gLogger.debug("HTTP request return header: {}".format(self._mResponseHeaderByte.getvalue().decode('utf-8')))
+        lHeaderList = self._mResponseHeaderByte.getvalue().decode('utf-8').split('\n')
 
         self._mResponseHeader = {}
 
@@ -70,4 +81,4 @@ class CBaseRequest():
         return self._mResponseHeader
 
     def getResponseBody(self):
-        return self._mResponseData.getvalue()
+        return self._mResponseData

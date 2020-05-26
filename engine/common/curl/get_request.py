@@ -20,6 +20,12 @@ class CGetRequest(CBaseRequest):
     def __del__(self):
         CBaseRequest.__del__(self)
 
+    def cleanData(self):
+        self.__mUrl = None
+        self.__mParams = None
+        self.__mHeader = []
+        CBaseRequest.__cleanData__(self)
+
     def putHeader(self, iHeader):
         if not type(iHeader) is list:
             gLogger.error("Expect a list but input type is: {}".format(type(iHeader)))
