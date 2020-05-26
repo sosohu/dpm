@@ -26,6 +26,21 @@ class CDownloadDpm():
         gLogger.info("Download category {} page {} finished.".format(self.__mCategory, self.__mPage))
         return
 
+    def _getResourceUrl(self, iRawData):
+        if not type(iRawData) is dict:
+            gLogger.error("Expect a dict but input type is: {}".format(type(iRawData)))
+            return
+
+        return iRawData["bigImage"] or iRawData["centerImage"] or iRawData["smallImage"]
+
+    def _getResourceFormat(self, iContentType):
+        if not iContentType:
+            return
+
+        lContentType2Format = {"image/jpeg": "jpg", "image/png": "png"}
+        if iContentType in lContentType2Format:
+            return lContentType2Format[iContentType]
+
     def __getResouce(self):
         lPostRequest = CPostRequest('download dpm list post')
         lPostRequest.putUrl(gConfigFileWrapper.getStr('dpm', 'query_list_url'))
@@ -65,19 +80,22 @@ class CDownloadDpm():
 
                     gLogger.debug("Start to process {} {}".format(lResourceName, lResourceDynastyName))
 
-                    if lRowData["bigImage"]:
-                        #lGetRequest.cleanData()
-                        lGetRequest.putUrl(gConfigFileWrapper.getStr('dpm', 'image_source_url').format(lRowData["bigImage"]))
+                    lImageUrl = self._getResourceUrl(lRowData)
+                    if lImageUrl:
+                        lGetRequest.cleanData()
+                        lGetRequest.putUrl(gConfigFileWrapper.getStr('dpm', 'image_source_url').format(lImageUrl))
                         lGetRequest.putHeader([self.__Referer])
 
                         lResponseCode = lGetRequest.performRequest()
 
                         if lResponseCode == 200:
                             lResponseHeader = lGetRequest.getResponseHeader()
-                            if 'image/jpeg' in lResponseHeader['content-type']:
+                            lFormat = self._getResourceFormat(lResponseHeader['content-type'])
+                            if lFormat:
                                 lResponsebody = lGetRequest.getResponseBody()
-                                lOutputFile = "{}/{}-{}-{}.jpg".format(self.__mSavePath, lResourceDynastyName, lResourceName, lUuid)
-                                lOutputFile = re.sub(r'[*?"<>|]', '', lOutputFile)
+                                lOutputFile = "{}-{}-{}".format(lResourceDynastyName, lResourceName, lUuid)
+                                lOutputFile = re.sub(r'[<>:"/\|?*]', '', lOutputFile)
+                                lOutputFile = "{}/{}.{}".format(self.__mSavePath, lOutputFile, lFormat)
                                 with open(lOutputFile, 'wb+') as out_file:
                                     out_file.write(lResponsebody)
                                     # Write metadata to database
@@ -88,7 +106,7 @@ class CDownloadDpm():
                         else:
                             gLogger.error("Fetch resource {}-{} in page {} failed. Response code: {}.".format(lResourceDynastyName, lResourceName, self.__mPage, lResponseCode))
                     else:
-                        gLogger.warn("The resource {}-{} in page {} does not have the big image".format(lResourceDynastyName, lResourceName, self.__mPage))
+                        gLogger.warn("The resource {}-{} in page {} does not have image".format(lResourceDynastyName, lResourceName, self.__mPage))
 
                 del lGetRequest
             else:

@@ -19,8 +19,10 @@ class CBaseRequest():
 
     def __cleanData__(self):
         self.__ResponseCode = None
-        self._mResponseHeaderByte.truncate(0)
-        self._mResponseDataByte.truncate(0)
+        self._mResponseHeaderByte = BytesIO()
+        self._mResponseDataByte = BytesIO()
+        self._mCurl.setopt(pycurl.WRITEHEADER, self._mResponseHeaderByte)
+        self._mCurl.setopt(pycurl.WRITEDATA, self._mResponseDataByte)
 
     def __initMember(self, iName):
         self._mName = iName
